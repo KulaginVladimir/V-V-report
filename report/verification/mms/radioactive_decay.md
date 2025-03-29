@@ -188,4 +188,5 @@ if not pyvista.OFF_SCREEN:
     u_plotter.show()
 else:
     figure = u_plotter.screenshot("decay.png")
+
 ```
