@@ -57,12 +57,8 @@ import ufl
 from mpi4py import MPI
 
 # Create and mark the mesh
-nx = ny = 100
-fenics_mesh = dolfinx.mesh.create_unit_square(
-    MPI.COMM_WORLD, nx, ny
-)
-
-# Create the FESTIM model
+nx = ny = 10
+fenics_mesh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, nx, ny)
 
 
 class LeftSurface(F.SurfaceSubdomain):
@@ -163,27 +159,27 @@ my_model.surface_to_volume = {
     bottom_right_surface: right_volume,
 }
 
-my_model.interfaces = [
-    F.Interface(id=7, subdomains=[left_volume, right_volume])
-]
+my_model.interfaces = [F.Interface(id=7, subdomains=[left_volume, right_volume])]
 
 H = F.Species("H", subdomains=my_model.volume_subdomains)
 my_model.species = [H]
+
 
 def exact_solution_left(mod):
     return lambda x: (
         1 + mod.sin(2 * mod.pi * (x[0] + 0.25)) + mod.cos(2 * mod.pi * x[1])
     )
 
-exact_solution_left_ufl = exact_solution_left(ufl)
 
 def exact_solution_right(mod):
     return lambda x: S_right / S_left * exact_solution_left(mod)(x)
 
+
+exact_solution_left_ufl = exact_solution_left(ufl)
 exact_solution_right_ufl = exact_solution_right(ufl)
 
 
-# source term left
+# source terms
 f_left = lambda x: -ufl.div(D_left * ufl.grad(exact_solution_left_ufl(x)))
 f_right = lambda x: -ufl.div(D_right * ufl.grad(exact_solution_right_ufl(x)))
 
@@ -193,6 +189,7 @@ my_model.sources = [
     F.ParticleSource(f_right, volume=right_volume, species=H),
 ]
 
+# boundary conditions
 my_model.boundary_conditions = [
     F.FixedConcentrationBC(subdomain=surface, value=exact_solution_left_ufl, species=H)
     for surface in [left_surface, top_left_surface, bottom_left_surface]
@@ -212,29 +209,31 @@ my_model.run()
 
 ## Comparison with exact solution
 
-The computed and exact solutions agree very well:
+The concentration fields can be visualised using `pyvista`.
 
 ```{code-cell} ipython3
 import pyvista
 from dolfinx.plot import vtk_mesh
 
 pyvista.start_xvfb()
-pyvista.set_jupyter_backend('html')
+pyvista.set_jupyter_backend("html")
 
-def get_ugrid(computed_solution, label):
+
+def get_ugrid(computed_solution: dolfinx.fem.Function, label):
     u_topology, u_cell_types, u_geometry = vtk_mesh(computed_solution.function_space)
     u_grid = pyvista.UnstructuredGrid(u_topology, u_cell_types, u_geometry)
     u_grid.point_data[label] = computed_solution.x.array.real
     u_grid.set_active_scalars(label)
     return u_grid
 
+
 u_plotter = pyvista.Plotter(shape=(1, 2))
 u_grid_left = get_ugrid(H.subdomain_to_post_processing_solution[left_volume], "c")
 u_grid_right = get_ugrid(H.subdomain_to_post_processing_solution[right_volume], "c")
 
 u_plotter.subplot(0, 0)
-u_plotter.add_mesh(u_grid_left, show_edges=False)
-u_plotter.add_mesh(u_grid_right, show_edges=False)
+u_plotter.add_mesh(u_grid_left, show_edges=True)
+u_plotter.add_mesh(u_grid_right, show_edges=True)
 u_plotter.view_xy()
 
 u_plotter.subplot(0, 1)
@@ -258,4 +257,109 @@ if not pyvista.OFF_SCREEN:
     u_plotter.show()
 else:
     figure = u_plotter.screenshot("discontinuity_concentration.png")
+```
+
+## Computing errors
+
+First, we compute the $L^2$-norm of the error, defined by $E=\sqrt{\int_\Omega (c-c_\mathrm{exact})^2\mathrm{d} x}$. Secondly, we compute the maximum error at any degree of freedom.
+
+```{code-cell} ipython3
+:tags: [hide-input]
+
+def error_L2(u_computed, u_exact, degree_raise=3):
+    # Create higher order function space
+    degree = u_computed.function_space.ufl_element().degree
+    family = u_computed.function_space.ufl_element().family_name
+    mesh = u_computed.function_space.mesh
+    W = dolfinx.fem.functionspace(mesh, (family, degree + degree_raise))
+
+    # Interpolate exact solution, special handling if exact solution
+    # is a ufl expression or a python lambda function
+    u_ex_W = dolfinx.fem.Function(W)
+    if isinstance(u_exact, ufl.core.expr.Expr):
+        u_expr = dolfinx.fem.Expression(u_exact, W.element.interpolation_points)
+        u_ex_W.interpolate(u_expr)
+    else:
+        u_ex_W.interpolate(u_exact)
+
+    # Integrate the error
+    error = dolfinx.fem.form(
+        ufl.inner(u_computed - u_ex_W, u_computed - u_ex_W) * ufl.dx
+    )
+    error_local = dolfinx.fem.assemble_scalar(error)
+    error_global = mesh.comm.allreduce(error_local, op=MPI.SUM)
+    return np.sqrt(error_global)
+```
+
+```{code-cell} ipython3
+computed_left = H.subdomain_to_post_processing_solution[left_volume]
+computed_right = H.subdomain_to_post_processing_solution[right_volume]
+
+E_l2_left = error_L2(computed_left, exact_solution_left(np))
+E_max_left = np.max(np.abs(exact_left.x.array - computed_left.x.array))
+E_l2_right = error_L2(computed_right, exact_solution_right(np))
+E_max_right = np.max(np.abs(exact_right.x.array - computed_right.x.array))
+
+print("Left volume:")
+print(f"L2 error: {E_l2_left:.2e}")
+print(f"Max error: {E_max_left:.2e}")
+
+print("\nRight volume:")
+print(f"L2 error: {E_l2_right:.2e}")
+print(f"Max error: {E_max_right:.2e}")
+```
+
+## Compute convergence rates
+
+It is also possible to compute how the numerical error decreases as we increase the number of cells.
+By iteratively refining the mesh, we find that the error exhibits a second order convergence rate.
+This is expected for this particular problem as first order finite elements are used.
+
+```{code-cell} ipython3
+import matplotlib.pyplot as plt
+
+errors_left, errors_right = [], []
+ns = [8, 10, 20, 30, 50, 100, 150]
+
+for n in ns:
+    nx = ny = n
+    fenics_mesh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, nx, ny)
+
+    new_model = F.HTransportProblemDiscontinuous()
+    new_model.mesh = F.Mesh(fenics_mesh)
+
+    new_model.species = my_model.species
+    new_model.subdomains = my_model.subdomains
+    new_model.surface_to_volume = my_model.surface_to_volume
+    new_model.interfaces = my_model.interfaces
+    new_model.sources = my_model.sources
+    new_model.boundary_conditions = my_model.boundary_conditions
+    new_model.temperature = my_model.temperature
+    new_model.settings = my_model.settings
+
+
+    new_model.initialise()
+    new_model.run()
+
+    computed_solution_left = H.subdomain_to_post_processing_solution[left_volume]
+    computed_solution_right = H.subdomain_to_post_processing_solution[right_volume]
+    errors_left.append(error_L2(computed_solution_left, exact_solution_left(np)))
+    errors_right.append(error_L2(computed_solution_right, exact_solution_right(np)))
+
+h = 1 / np.array(ns)
+
+plt.loglog(h, errors_left, marker="o", label="Left volume")
+plt.loglog(h, errors_right, marker="o", label="Right volume")
+plt.xlabel("Element size")
+plt.ylabel("L2 error")
+
+plt.loglog(h, 2 * h**2, linestyle="--", color="black")
+plt.annotate(
+    "2nd order", (h[0], 2 * h[0] ** 2), textcoords="offset points", xytext=(10, 0)
+)
+
+plt.grid(alpha=0.3)
+plt.gca().spines[["right", "top"]].set_visible(False)
+plt.legend()
+plt.show()
 ```
