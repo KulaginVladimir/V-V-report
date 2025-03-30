@@ -245,17 +245,19 @@ model.settings.stepsize = F.Stepsize(
 
 left_flux = F.SurfaceFlux(surface=left_boundary, field=H)
 right_flux = F.SurfaceFlux(surface=right_boundary, field=H)
+total_mobile_H = F.TotalVolume(field=H, volume=volume)
+trapped_H1 = F.TotalVolume(field=trapped_H1, volume=volume)
+trapped_H2 = F.TotalVolume(field=trapped_H2, volume=volume)
+trapped_H3 = F.TotalVolume(field=trapped_H3, volume=volume)
 
-derived_quantities = [
-    F.TotalVolume(field=H, volume=volume),
-    F.TotalVolume(field=trapped_H1, volume=volume),
-    F.TotalVolume(field=trapped_H2, volume=volume),
-    F.TotalVolume(field=trapped_H3, volume=volume),
+model.exports = [
+    total_mobile_H,
+    trapped_H1,
+    trapped_H2,
+    trapped_H3,
     left_flux,
     right_flux,
 ]
-
-model.exports = derived_quantities
 
 model.initialise()
 model.run()
@@ -271,13 +273,9 @@ The results produced by FESTIM are in good agreement with the experimental data.
 t = left_flux.t
 flux_total = np.array(left_flux.data) + np.array(right_flux.data)
 
-# trap_1 = derived_quantities.filter(fields="1").data
-# trap_2 = derived_quantities.filter(fields="2").data
-# trap_3 = derived_quantities.filter(fields="3").data
-
-# contribution_trap_1 = -np.diff(trap_1) / np.diff(t)
-# contribution_trap_2 = -np.diff(trap_2) / np.diff(t)
-# contribution_trap_3 = -np.diff(trap_3) / np.diff(t)
+contribution_trap_1 = -np.diff(trapped_H1.data) / np.diff(trapped_H1.t)
+contribution_trap_2 = -np.diff(trapped_H2.data) / np.diff(trapped_H2.t)
+contribution_trap_3 = -np.diff(trapped_H3.data) / np.diff(trapped_H3.t)
 
 t = np.array(t)
 temp = implantation_temp + 8 * (t - start_tds)
@@ -285,20 +283,20 @@ temp = implantation_temp + 8 * (t - start_tds)
 # plotting simulation data
 plt.plot(temp, flux_total, linewidth=3, label="FESTIM")
 
-# # plotting trap contributions
-# plt.plot(temp[1:], contribution_trap_1, linestyle="--", color="grey")
-# plt.fill_between(temp[1:], 0, contribution_trap_1, facecolor="grey", alpha=0.1)
-# plt.plot(temp[1:], contribution_trap_2, linestyle="--", color="grey")
-# plt.fill_between(temp[1:], 0, contribution_trap_2, facecolor="grey", alpha=0.1)
-# plt.plot(temp[1:], contribution_trap_3, linestyle="--", color="grey")
-# plt.fill_between(temp[1:], 0, contribution_trap_3, facecolor="grey", alpha=0.1)
+# plotting trap contributions
+plt.plot(temp[1:], contribution_trap_1, linestyle="--", color="grey")
+plt.fill_between(temp[1:], 0, contribution_trap_1, facecolor="grey", alpha=0.1)
+plt.plot(temp[1:], contribution_trap_2, linestyle="--", color="grey")
+plt.fill_between(temp[1:], 0, contribution_trap_2, facecolor="grey", alpha=0.1)
+plt.plot(temp[1:], contribution_trap_3, linestyle="--", color="grey")
+plt.fill_between(temp[1:], 0, contribution_trap_3, facecolor="grey", alpha=0.1)
 
 
 # plotting original data
 experimental_tds = np.genfromtxt("ogorodnikova-original.csv", delimiter=",")
 experimental_temp = experimental_tds[:, 0]
 experimental_flux = experimental_tds[:, 1]
-plt.scatter(experimental_temp, experimental_flux, color="green", label="original", s=16)
+plt.scatter(experimental_temp, experimental_flux, color="green", label="Experiment", s=16)
 
 plt.legend()
 plt.xlim(min_temp, max_temp)
