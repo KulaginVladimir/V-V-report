@@ -38,6 +38,53 @@ The time evolution of extrinsic traps density $n_i$ expressed in $\text{m}^{-3}$
 ## FESTIM code
 
 ```{code-cell} ipython3
+:tags: [hide-input]
+
+import festim as F
+import ufl
+
+
+class CustomValue(F.Value):
+    def __init__(self, input_value, species_dependent_value=None):
+        self.species_dependent_value = species_dependent_value or {}
+        super().__init__(input_value)
+
+    def convert_input_value(
+        self, function_space=None, t=None, temperature=None, up_to_ufl_expr=False
+    ):
+        mesh = function_space.mesh
+        x = ufl.SpatialCoordinate(mesh)
+        arguments = self.input_value.__code__.co_varnames
+        kwargs = {}
+        if "t" in arguments:
+            kwargs["t"] = t
+        if "x" in arguments:
+            kwargs["x"] = x
+        if "T" in arguments:
+            kwargs["T"] = temperature
+
+        for name, species in self.species_dependent_value.items():
+            kwargs[name] = species.concentration
+
+        self.fenics_object = self.input_value(**kwargs)
+
+
+class CustomSource(F.ParticleSource):
+
+    def __init__(self, value, volume, species, species_dependent_value=None):
+        self.species_dependent_value = species_dependent_value or {}
+        super().__init__(value, volume, species)
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, value):
+        self._value = CustomValue(value, self.species_dependent_value)
+```
+
+```{code-cell} ipython3
 :tags: [hide-output]
 
 import festim as F
@@ -100,30 +147,20 @@ trapping_reaction_2 = F.Reaction(
     volume=volume,
 )
 
-# center = 4.5e-9
-# width = 2.5e-9
-# distribution = (
-#     1 / (width * (2 * sp.pi) ** 0.5) * sp.exp(-0.5 * ((F.x - center) / width) ** 2)
-# )
-
-# trap_3 = F.ExtrinsicTrap(
-#     k_0=4.1e-7 / (1.1e-10**2 * 6 * w_atom_density),
-#     E_k=0.39,
-#     p_0=1e13,
-#     E_p=1.5,
-#     phi_0=ion_flux,
-#     n_amax=1e-01 * w_atom_density,
-#     f_a=distribution,
-#     eta_a=6e-4,
-#     n_bmax=1e-02 * w_atom_density,
-#     f_b=sp.Piecewise((1e6, F.x < 1e-6), (0, True)),
-#     eta_b=2e-4,
-#     materials=tungsten,
-# )
+trapping_reaction_3 = F.Reaction(
+    reactant=[H, empty_trap3],
+    product=[trapped_H3],
+    k_0=4.1e-7 / (1.1e-10**2 * 6 * w_atom_density),
+    E_k=0.39,
+    p_0=1e13,
+    E_p=1.5,
+    volume=volume,
+)
 
 model.reactions = [
     trapping_reaction_1,
     trapping_reaction_2,
+    trapping_reaction_3,
 ]
 
 
@@ -145,7 +182,26 @@ def gaussian_distribution(x, center, width):
 
 particle_source = lambda x, t: ion_flux(t) * gaussian_distribution(x, 4.5e-9, 2.5e-9)
 
-model.sources = [F.ParticleSource(value=particle_source, volume=volume, species=H)]
+n_amax = 1e-1 * w_atom_density
+n_bmax = 1e-2 * w_atom_density
+eta_a = 6e-4
+eta_b = 2e-4
+f_b = lambda x: ufl.conditional(x[0] < 1e-6, 1e6, 0)
+
+trap_generation_value = lambda x, t, n_empty: ion_flux(t) * (
+    (1 - n_empty / n_amax) * eta_a * gaussian_distribution(x, 4.5e-9, 2.5e-9)
+    + (1 - n_empty / n_bmax) * eta_b * f_b(x)
+)
+trap_source = CustomSource(
+    value=trap_generation_value,
+    volume=volume,
+    species=empty_trap3,
+    species_dependent_value={"n_empty": empty_trap3},
+)
+model.sources = [
+    F.ParticleSource(value=particle_source, volume=volume, species=H),
+    trap_source,
+]
 
 # boundary conditions
 model.boundary_conditions = [
@@ -185,7 +241,6 @@ model.settings.stepsize = F.Stepsize(
     max_stepsize=lambda t: 0.5 if t >= start_tds else None,
     milestones=[start_tds],
 )
-
 
 
 left_flux = F.SurfaceFlux(surface=left_boundary, field=H)
