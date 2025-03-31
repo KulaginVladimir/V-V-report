@@ -58,7 +58,6 @@ from matplotlib import pyplot as plt
 
 C_0 = 1  # atom m^-3
 D = 1  # m^2 s^-1
-profile_time = 25  # s
 exact_solution = lambda x, t: C_0 * (1 - erf(x / np.sqrt(4 * D * t)))
 
 model = F.HydrogenTransportProblem()
