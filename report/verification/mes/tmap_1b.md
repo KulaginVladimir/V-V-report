@@ -24,8 +24,6 @@ This verification case from TMAP7's V&V report {cite}`ambrosek_verification_2008
 ## FESTIM Code
 
 ```{code-cell} ipython3
-:tags: [hide-cell]
-
 import festim as F
 
 from dolfinx.geometry import bb_tree, compute_colliding_cells, compute_collisions_points
@@ -50,6 +48,7 @@ class PointValue(F.VolumeQuantity):
 ```
 
 ```{code-cell} ipython3
+:tags: [hide-cell]
 
 import festim as F
 import numpy as np
@@ -130,7 +129,7 @@ plt.plot(computed_x, computed_solution, label="FESTIM", linewidth=3)
 exact_y = exact_solution(np.array(computed_x), model.settings.final_time)
 plt.plot(computed_x, exact_y, label="Exact", color="orange", linestyle="--")
 
-plt.title(f"Concentration profile at t={profile_time}s")
+plt.title(f"Concentration profile at t={model.settings.final_time}s")
 plt.ylabel("Concentration (atom / m^3)")
 plt.xlabel("x (m)")
 plt.ylim(bottom=0)
