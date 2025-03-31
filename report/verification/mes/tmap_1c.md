@@ -7,7 +7,7 @@ jupytext:
     format_version: 0.13
     jupytext_version: 1.16.7
 kernelspec:
-  display_name: vv-festim-report-env
+  display_name: vv-festim-report-env-festim-2
   language: python
   name: python3
 ---
@@ -23,19 +23,56 @@ This verification case from case Val-1c of TMAP7's V&V report {cite}`ambrosek_ve
 
 ## FESTIM Code
 
-```{code-cell}
+```{code-cell} ipython3
+import festim as F
+
+from dolfinx.geometry import bb_tree, compute_colliding_cells, compute_collisions_points
+
+
+class PointValue(F.VolumeQuantity):
+    def __init__(self, field, volume, x0, filename=None):
+        super().__init__(field, volume, filename)
+        self.x0 = x0
+
+    def compute(self):
+        u = self.field.solution
+        mesh = u.function_space.mesh
+        tree = bb_tree(mesh, mesh.geometry.dim)
+        cell_candidates = compute_collisions_points(tree, self.x0)
+        cell = compute_colliding_cells(mesh, cell_candidates, self.x0).array
+        assert len(cell) > 0
+        first_cell = cell[0]
+
+        self.value = self.field.solution.eval(self.x0, first_cell)
+        self.data.append(self.value)
+
+
+class Profile(F.VolumeQuantity):
+    def __init__(self, field, volume, times=None, filename=None):
+        super().__init__(field, volume, filename)
+        self.times = times or []
+
+    def compute(self):
+        self.value = self.field.solution.x.array[:].copy()
+        self.data.append(self.value)
+```
+
+```{code-cell} ipython3
 :tags: [hide-cell]
 
 import festim as F
 import numpy as np
-import sympy as sp
+import ufl
 from matplotlib import pyplot as plt
 
 preloaded_length = 10  # m
 C_0 = 1  # atom m^-3
 D = 1  # 1 m^2 s^-1
 
-model = F.Simulation()
+model = F.HydrogenTransportProblem()
+
+H = F.Species("H")
+model.species = [H]
 
 ### Mesh Settings ###
 vertices = np.concatenate(
@@ -45,39 +82,39 @@ vertices = np.concatenate(
     ]
 )
 
-model.mesh = F.MeshFromVertices(vertices)
+model.mesh = F.Mesh1D(vertices)
 
-model.boundary_conditions = [F.DirichletBC(surfaces=[1], value=0, field="solute")]
+material = F.Material(D_0=D, E_D=0)
 
-initial_concentration = sp.Piecewise((C_0, F.x <= preloaded_length), (0, True))
-model.initial_conditions = [
-    F.InitialCondition(field="solute", value=initial_concentration)
+left_boundary = F.SurfaceSubdomain1D(id=1, x=0)
+volume = F.VolumeSubdomain1D(id=1, borders=[0, 100], material=material)
+
+model.subdomains = [left_boundary, volume]
+
+model.boundary_conditions = [
+    F.FixedConcentrationBC(subdomain=left_boundary, value=0, species=H)
 ]
 
-model.materials = F.Material(id=1, D_0=D, E_D=0)
+initial_concentration = lambda x: ufl.conditional(x[0] <= preloaded_length, C_0, 0)
+model.initial_conditions = [F.InitialCondition(value=initial_concentration, species=H)]
 
-model.T = F.Temperature(500)  # ignored in this problem
 
-model.dt = F.Stepsize(
-    initial_value=0.01,
-    stepsize_change_ratio=1.1,
-)
+model.temperature = 500  # ignored in this problem
+
 
 test_points = [0.5, preloaded_length, 12]  # m
-final_times = [100, 100, 50]
 profile_times = [0.1] + np.linspace(0, 100, num=10).tolist()[1:]
-derived_quantities = F.DerivedQuantities(
-    [F.PointValue("solute", x=v) for v in test_points]
-)
 model.exports = [
-    derived_quantities,
-    F.TXTExport(
-        field="solute", filename="./tmap_1c_data/c_profiles.txt", times=profile_times
-    ),
-]
+    PointValue(field=H, volume=volume, x0=np.array([v, 0, 0])) for v in test_points
+] + [Profile(field=H, volume=volume)]
 
-model.settings = F.Settings(
-    absolute_tolerance=1e-10, relative_tolerance=1e-10, final_time=max(final_times)
+model.settings = F.Settings(atol=1e-10, rtol=1e-10, final_time=100)
+model.settings.stepsize = F.Stepsize(
+    initial_value=0.01,
+    growth_factor=1.1,
+    cutback_factor=0.9,
+    target_nb_iterations=4,
+    milestones=profile_times,
 )
 
 model.initialise()
@@ -100,38 +137,44 @@ $$
 
 where $h$ is the thickness of the pre-loaded region.
 
-```{code-cell}
+```{code-cell} ipython3
 :tags: [hide-input]
 
 from matplotlib import cm
 from matplotlib.colors import Normalize
 from scipy.special import erf
 
-norm = Normalize(vmin=0, vmax=max(profile_times))
-cmap = cm.viridis
 
 def exact_solution(x, t):
     sqrt_term = np.sqrt(4 * D * t)
     return (
-    C_0
-    / 2
-    * (
-        2 * erf(x / sqrt_term)
-        - erf((x - preloaded_length) / sqrt_term)
-        - erf((x + preloaded_length) / sqrt_term)
+        C_0
+        / 2
+        * (
+            2 * erf(x / sqrt_term)
+            - erf((x - preloaded_length) / sqrt_term)
+            - erf((x + preloaded_length) / sqrt_term)
+        )
     )
-)
+
+
+norm = Normalize(vmin=0, vmax=max(profile_times))
+cmap = cm.viridis
+
 
 plt.figure()
-filename = model.exports[1].filename
-data = np.genfromtxt(filename, delimiter=",", names=True)
+
+profile_export = model.exports[-1]
+data = profile_export.data
 for i, t in enumerate(profile_times):
     label = "exact" if i == 0 else ""
-    x = data["x"]
+    x = model.mesh.mesh.geometry.x[:, 0]
     y_name = f"t{t:.2e}s".replace("+", "").replace("-", "").replace(".", "")
-    y = data[y_name]
+
+    indices = np.where(np.isclose(profile_export.t, t))[0][0]
+    y = data[indices]
     x, y = zip(*sorted(zip(x, y)))
-    
+
     exact_y = exact_solution(np.array(x), t)
 
     plt.plot(x, exact_y, linestyle="dashed", color="tab:grey", linewidth=3, label=label)
@@ -152,7 +195,7 @@ plt.show()
 
 The results can also be compared with the results obtained by TMAP7.
 
-```{code-cell}
+```{code-cell} ipython3
 :tags: [hide-input]
 
 fig, axs = plt.subplots(1, len(test_points), sharey=True)
@@ -161,12 +204,12 @@ for i, x in enumerate(test_points):
     plt.sca(axs[i])
 
     # plotting computed data
-    computed_solution = derived_quantities[i].data
-    t = np.array(derived_quantities[i].t)
+    computed_solution = model.exports[i].data
+    t = np.array(model.exports[i].t)
     plt.plot(t, computed_solution, label="FESTIM", linewidth=3)
 
     # plotting exact solution
-    plt.plot(t, exact_solution(x, t), label="Exact", color="green", linestyle="--")
+    plt.plot(t, exact_solution(x, t), label="Exact", color="orange", linestyle="--")
 
     # plotting TMAP data
     tmap_data = np.genfromtxt(
