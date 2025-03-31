@@ -51,7 +51,6 @@ This analytical solution was obtained from TMAP7's V&V report {cite}`ambrosek_ve
 ## FESTIM Code
 
 ```{code-cell}
-:tags: [hide-input, hide-output]
 
 import festim as F
 import numpy as np
