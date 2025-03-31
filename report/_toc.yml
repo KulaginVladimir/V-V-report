@@ -28,7 +28,7 @@ parts:
       - file: verification/tmap_cases
         sections:
       #     - file: verification/mes/depleting_source
-      #     - file: verification/mes/tmap_1b
+          - file: verification/mes/tmap_1b
       #     - file: verification/mes/tmap_1c
           - file: verification/mes/tmap_1da
       #     - file: verification/mes/tmap_1db
