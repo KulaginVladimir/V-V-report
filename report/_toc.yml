@@ -25,10 +25,10 @@ parts:
       - file: verification/mms/radioactive_decay
       # - file: verification/mms/soret
       # - file: verification/mms/surface_kinetics
-      # - file: verification/tmap
-      #   sections:
+      - file: verification/tmap
+        sections:
       #     - file: verification/mes/depleting_source
-      #     - file: verification/mes/tmap_1b
+          - file: verification/mes/tmap_1b
       #     - file: verification/mes/tmap_1c
       #     - file: verification/mes/tmap_1da
       #     - file: verification/mes/tmap_1db
