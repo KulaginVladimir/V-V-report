@@ -12,7 +12,7 @@ kernelspec:
   name: python3
 ---
 
-# Effective diffusivity regime
+# Strong trapping regime
 
 ```{tags} 1D, MES, transient, trapping
 ```
@@ -32,21 +32,17 @@ $\nu \ (\mathrm{s}^{-1})$, the Debye frequency \
 $\rho$ is the trapping site fraction, \
 $c_\mathrm{m}$ is the mobile atom fraction.
 
-In the effective diffusivity regime, $\zeta \gg c_\mathrm{m} / \rho$ and the hydrogen transport can be described with an effective diffusivity $\mathrm{D_\text{eff}}$:
+In the strong trapping regime, $\zeta \approx c_\mathrm{m} / \rho$, and no permeation occurs until essentially all the traps have been filled.
+
+The breakthrough time is given by
 
 $$
-    D_\text{eff} = \frac{D}{1 + \frac{1}{\zeta}}
+    \tau = \frac{l^2 \rho}{2 c_{\mathrm{m},0} D}
 $$
 
-Then with a breakthrough time $\tau = \frac{l^2}{2\pi^2 D_\text{eff}}$, the exact solution for flux is
+where $c_{\mathrm{m},0}$ is the steady concentration of mobile atoms at $x=0$. This analytical solution was obtained from TMAP7's V&V report {cite}`ambrosek_verification_2008`, case Val-1db.
 
-$$
-    J = \frac{c_{\mathrm{m},0} D}{l} \left[ 1 + 2\sum_{m=1}^\infty (-1)^m \exp \left( -m^2 \frac{t}{\tau} \right) \right]
-$$
-
-where $c_{\mathrm{m},0}$ is the steady concentration of mobile atoms at $x=0$. This analytical solution was obtained from TMAP7's V&V report {cite}`ambrosek_verification_2008`, case Val-1da.
-
-For this case, $\lambda=\sqrt{10^{-15}} \ \mathrm{m}$, $\nu=10^{13}$, $D=1 \ \mathrm{m}^2/\mathrm{s}$, and $E_p/k_\mathrm{B}=100 \ \mathrm{K}$ are used to obtain $\zeta \approx 91.48 c_\mathrm{m} / \rho$.
+For this case, $\lambda=\sqrt{10^{-15}} \ \mathrm{m}$, $\nu=10^{13}$, $D=1 \ \mathrm{m}^2/\mathrm{s}$, and $E_p/k_\mathrm{B}=10000 \ \mathrm{K}$ are used to obtain $\zeta \approx 1.00454 c_\mathrm{m} / \rho$.
 
 +++
 
@@ -63,7 +59,7 @@ D_0 = 1
 E_D = 0.
 k_0 = 1e15 / n
 p_0 = 1e13
-E_p = 100 * F.k_B
+E_p = 10000 * F.k_B
 T = 1000
 sample_depth = 1
 
@@ -105,9 +101,15 @@ my_model.boundary_conditions = [
     F.DirichletBC(subdomain=right_boundary, value=0, species=mobile_H),
 ]
 
-my_model.settings = F.Settings(atol=2e15, rtol=5e-8, max_iterations=30, final_time=10)
+my_model.settings = F.Settings(atol=2e15, rtol=5e-8, max_iterations=30, final_time=1000)
 
-my_model.settings.stepsize = F.Stepsize(0.05)
+my_model.settings.stepsize = F.Stepsize(
+    initial_value=1e-6,
+    growth_factor=1.1,
+    cutback_factor=0.9,
+    target_nb_iterations=30,
+    max_stepsize=2,
+)
 
 right_flux = F.SurfaceFlux(field=mobile_H, surface=right_boundary)
 
@@ -125,59 +127,45 @@ my_model.run()
 import plotly.graph_objects as go
 import plotly.express as px
 
-a = np.sqrt(1e-15)
-zeta = (a**2 * 1e13  * n / D_0 * np.exp((E_D-E_p)/F.k_B/T) + c_m) / rho  #(6 * rho_W * np.exp((E_D - E_p) / (F.k_B * T)) + c_m * N_A) / (rho_W * 1e-3)
-D_eff = D_0 / (1 + 1 / zeta)
-
 # plot computed solution
 t = np.array(right_flux.t)
 computed_solution = np.array(right_flux.data)
 
+time_exact = sample_depth**2 * rho / (2 * c_m * D_0)
+
 fig = go.Figure()
 
-festim_plot = go.Scatter(
-    x=t,
-    y=computed_solution / 1e18,
-    mode="lines",
-    line=dict(width=3, color=px.colors.qualitative.Plotly[1]),
-    name="FESTIM",
+fig.add_traces(
+        go.Scatter(
+            x=t,
+            y=computed_solution / 1e18,
+            mode="lines",
+            line=dict(width=3, color=px.colors.qualitative.Plotly[1]),
+            name="FESTIM",
+        )
 )
 
-# plot exact solution
-m = np.arange(1, 10001)
-
-# Calculate the exponential part for all m values at once
-tau = sample_depth**2 / (2 * np.pi**2 * D_eff)
-exp_part = np.exp(-(m**2) * t[:, None] / 2 / tau)
-
-# Calculate the 'add' part for all m values and sum them up for each t
-add = 2 * (-1) ** m * exp_part
-series = 1 + add.sum(
-    axis=1
-)  # Sum along the m dimension and add 1 for the initial ones
-
-exact_solution = c_m * D_0 / sample_depth * series
-
-exact_plot = go.Scatter(
-    x=t,
-    y=exact_solution / 1e18,
-    mode="markers",
-    marker=dict(size=9, opacity=0.5, color=px.colors.qualitative.Plotly[0]),
-    name="exact",
+fig.add_traces(
+        go.Scatter(
+            x=[time_exact,time_exact],
+            y=[0,4],
+            mode="lines",
+            line=dict(width=3, color=px.colors.qualitative.Plotly[0], dash="dash"),
+            name="Analytical breakthrough time",
+        )
 )
 
-fig.add_traces([exact_plot, festim_plot])
-fig.update_xaxes(title_text="Time, s", range=[0,10])
+fig.update_xaxes(title_text="Time, s", range=[0,1000])
 fig.update_yaxes(
-    title_text="Downstream flux, 10<sup>18</sup> H m<sup>-2</sup>s<sup>-1</sup>"
+    title_text="Downstream flux, 10<sup>18</sup> H m<sup>-2</sup>s<sup>-1</sup>", range=[0,3.25]
 )
 fig.update_layout(template="simple_white", height=600)
 
 # The writing-reading block below is needed to avoid the issue with compatibility
 # of Plotly plots and dollarmath syntax extension in Jupyter Book
 # For mode details, see https://github.com/jupyter-book/jupyter-book/issues/1528
-fig.write_html("./tmap_1da.html")
+fig.write_html("./tmap_1db.html")
 from IPython.display import HTML, display
 
-display(HTML("./tmap_1da.html"))
+display(HTML("./tmap_1db.html"))
 ```
