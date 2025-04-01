@@ -41,10 +41,10 @@ $$
 Then the breakthrough time is given by
 
 $$
-    \tau = \frac{l^2}{2\pi^2 D_\text{eff}}
+    \tau = \frac{l^2 \rho}{2 c_{\mathrm{m},0} D}
 $$
 
-This analytical solution was obtained from TMAP7's V&V report {cite}`ambrosek_verification_2008`, case Val-1db.
+where $c_{\mathrm{m},0}$ is the steady concentration of mobile atoms at $x=0$. This analytical solution was obtained from TMAP7's V&V report {cite}`ambrosek_verification_2008`, case Val-1db.
 
 +++
 
