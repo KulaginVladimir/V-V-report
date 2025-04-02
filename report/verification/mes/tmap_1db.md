@@ -42,7 +42,7 @@ $$
 
 where $c_{\mathrm{m},0}$ is the steady concentration of mobile atoms at $x=0$. This analytical solution was obtained from TMAP7's V&V report {cite}`ambrosek_verification_2008`, case Val-1db.
 
-For this case, $\lambda=\sqrt{10^{-15}} \ \mathrm{m}$, $\nu=10^{13}$, $D=1 \ \mathrm{m}^2/\mathrm{s}$, and $E_p/k_\mathrm{B}=10000 \ \mathrm{K}$ are used to obtain $\zeta \approx 1.00454 c_\mathrm{m} / \rho$.
+For this case, $\lambda=\sqrt{10^{-15}} \ \mathrm{m}$, $\nu=10^{13}$, $D=1 \ \mathrm{m}^2 \mathrm{s}^{-1}$, and $E_p/k_\mathrm{B}=10000 \ \mathrm{K}$ are used to obtain $\zeta \approx 1.00454 c_\mathrm{m} / \rho$.
 
 +++
 
@@ -56,7 +56,7 @@ import numpy as np
 n = 3.162e22
 rho = 1e-1 * n
 D_0 = 1
-E_D = 0.
+E_D = 0.0
 k_0 = 1e15 / n
 p_0 = 1e13
 E_p = 10000 * F.k_B
@@ -136,28 +136,28 @@ time_exact = sample_depth**2 * rho / (2 * c_m * D_0)
 fig = go.Figure()
 
 fig.add_traces(
-        go.Scatter(
-            x=t,
-            y=computed_solution / 1e18,
-            mode="lines",
-            line=dict(width=3, color=px.colors.qualitative.Plotly[1]),
-            name="FESTIM",
-        )
+    go.Scatter(
+        x=t,
+        y=computed_solution,
+        mode="lines",
+        line=dict(width=3, color=px.colors.qualitative.Plotly[1]),
+        name="FESTIM",
+    )
 )
 
 fig.add_traces(
-        go.Scatter(
-            x=[time_exact,time_exact],
-            y=[0,4],
-            mode="lines",
-            line=dict(width=3, color=px.colors.qualitative.Plotly[0], dash="dash"),
-            name="Analytical breakthrough time",
-        )
+    go.Scatter(
+        x=[time_exact, time_exact],
+        y=[0, 4e18],
+        mode="lines",
+        line=dict(width=3, color=px.colors.qualitative.Plotly[0], dash="dash"),
+        name="Analytical breakthrough time",
+    )
 )
 
-fig.update_xaxes(title_text="Time, s", range=[0,1000])
+fig.update_xaxes(title_text="Time, s", range=[0, 1000])
 fig.update_yaxes(
-    title_text="Downstream flux, 10<sup>18</sup> H m<sup>-2</sup>s<sup>-1</sup>", range=[0,3.25]
+    title_text="Downstream flux, H m<sup>-2</sup>s<sup>-1</sup>", range=[0, 3.25e18]
 )
 fig.update_layout(template="simple_white", height=600)
 
