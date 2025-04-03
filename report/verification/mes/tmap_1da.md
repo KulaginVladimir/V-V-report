@@ -32,7 +32,7 @@ $\nu \ (\mathrm{s}^{-1})$, the Debye frequency \
 $\rho$ is the trapping site fraction, \
 $c_\mathrm{m}$ is the mobile atom fraction.
 
-In the effective diffusivity regime, $\zeta \gg c_\mathrm{m} / \rho$ and the hydrogen transport can be described with an effective diffusivity $\mathrm{D_\text{eff}}$:
+In the effective diffusivity regime, $\zeta \gg c_\mathrm{m} / \rho$ and the hydrogen transport can be described with an effective diffusivity $D_\mathrm{eff}$:
 
 $$
     D_\text{eff} = \frac{D}{1 + \frac{1}{\zeta}}
@@ -46,7 +46,7 @@ $$
 
 where $c_{\mathrm{m},0}$ is the steady concentration of mobile atoms at $x=0$. This analytical solution was obtained from TMAP7's V&V report {cite}`ambrosek_verification_2008`, case Val-1da.
 
-For this case, $\lambda=\sqrt{10^{-15}} \ \mathrm{m}$, $\nu=10^{13}$, $D=1 \ \mathrm{m}^2 \mathrm{s}^{-1}$, and $E_p/k_\mathrm{B}=100 \ \mathrm{K}$ are used to obtain $\zeta \approx 91.48 c_\mathrm{m} / \rho$.
+For this case, $\lambda=\sqrt{10^{-15}} \ \mathrm{m}$, $\nu=10^{13} \ \mathrm{s}^{-1}$, $D=1 \ \mathrm{m}^2 \mathrm{s}^{-1}$, and $E_p/k_\mathrm{B}=100 \ \mathrm{K}$ are used to obtain $\zeta \approx 91.48 c_\mathrm{m} / \rho$.
 
 +++
 

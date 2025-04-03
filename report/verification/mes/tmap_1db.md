@@ -17,7 +17,7 @@ kernelspec:
 ```{tags} 1D, MES, transient, trapping
 ```
 
-This verification case consists of a slab of depth $l = 1 \ \mathrm{m}$ with one trap under the effective diffusivity regime.
+This verification case consists of a slab of depth $l = 1 \ \mathrm{m}$ with one trap under the strong trapping regime.
 
 A trapping parameter $\zeta$ is defined by
 
@@ -42,7 +42,7 @@ $$
 
 where $c_{\mathrm{m},0}$ is the steady concentration of mobile atoms at $x=0$. This analytical solution was obtained from TMAP7's V&V report {cite}`ambrosek_verification_2008`, case Val-1db.
 
-For this case, $\lambda=\sqrt{10^{-15}} \ \mathrm{m}$, $\nu=10^{13}$, $D=1 \ \mathrm{m}^2 \mathrm{s}^{-1}$, and $E_p/k_\mathrm{B}=10000 \ \mathrm{K}$ are used to obtain $\zeta \approx 1.00454 c_\mathrm{m} / \rho$.
+For this case, $\lambda=\sqrt{10^{-15}} \ \mathrm{m}$, $\nu=10^{13} \ \mathrm{s}^{-1}$, $D=1 \ \mathrm{m}^2 \mathrm{s}^{-1}$, and $E_p/k_\mathrm{B}=10000 \ \mathrm{K}$ are used to obtain $\zeta \approx 1.00454 c_\mathrm{m} / \rho$.
 
 +++
 
