@@ -17,7 +17,7 @@ kernelspec:
 ```{tags} 1D, MES, RadioactiveDecay, transient
 ```
 
-This example is a radioactive decay (`RadioactiveDecay`) problem on simple unit interval with a uniform mobile concentration and no boundary condition.
+This example is a radioactive decay problem on simple unit interval with a uniform mobile concentration and no boundary condition.
 
 
 In this problem, for simplicity, we don't set any traps and we model an isolated domain (no flux boundary conditions) to mimick a simple 0D case. Diffusion can therefore be neglected and the problem is:
@@ -45,7 +45,6 @@ We can then run a FESTIM model with these conditions and compare the numerical s
 ## FESTIM Code
 
 ```{code-cell} ipython3
-:tags: [hide-cell]
 
 import festim as F
 import numpy as np
@@ -54,9 +53,6 @@ import matplotlib.pyplot as plt
 
 initial_concentration = 3.0
 
-#print("Len de initial_condition",len(initial_concentration))
-
-#half_life=25
 def run_model(half_life):
     my_model = F.HydrogenTransportProblem()
 
@@ -71,30 +67,17 @@ def run_model(half_life):
     H = F.Species("H")
     my_model.species = [H]
 
-    exact_solution = lambda t: initial_concentration*np.exp(-np.log(2) / half_life * t) # exact solution
-    
-    decay_constant = 3#np.log(2)/half_life
-
-    def S(t):
-        return decay_constant*exact_solution(t)
-
-    my_model.sources = [
-        F.ParticleSource(
-            value=S, volume=volume, species=H
-        )
-    ]
+    decay_constant = np.log(2)/half_life
 
     decay_reaction = F.Reaction(reactant=H, k_0=decay_constant, E_k=0, volume=volume)
 
     my_model.reactions = [decay_reaction]
 
-    my_model.boundary_conditions = []#F.FixedConcentrationBC()]
-
     my_model.temperature = 300 # ignored in this problem
 
-    Average_volume = F.AverageVolume(field=H, volume=volume)
+    average_volume = F.AverageVolume(field=H, volume=volume)
 
-    my_model.exports=[Average_volume]
+    my_model.exports=[average_volume]
 
     my_model.initial_conditions = [F.InitialCondition(value=3.0, species=H)]
 
@@ -104,10 +87,8 @@ def run_model(half_life):
     my_model.initialise()
     my_model.run()
 
-    time = Average_volume.t
-    concentration = Average_volume.data
-    print(time)
-    print(concentration)
+    time = average_volume.t
+    concentration = average_volume.data
     return time, concentration
 
 
