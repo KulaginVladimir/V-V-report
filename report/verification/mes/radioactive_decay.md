@@ -53,12 +53,13 @@ import matplotlib.pyplot as plt
 
 initial_concentration = 3.0
 
+
 def run_model(half_life):
     my_model = F.HydrogenTransportProblem()
 
-    my_model.mesh = F.Mesh1D(np.linspace(0,1,1001))
+    my_model.mesh = F.Mesh1D(np.linspace(0, 1, 1001))
     my_mat = F.Material(D_0=1, E_D=0)
-    volume = F.VolumeSubdomain1D(id=1, borders=[0,1], material=my_mat)
+    volume = F.VolumeSubdomain1D(id=1, borders=[0, 1], material=my_mat)
     left_boundary = F.SurfaceSubdomain1D(id=1, x=0)
     right_boundary = F.SurfaceSubdomain1D(id=2, x=1)
 
@@ -67,22 +68,29 @@ def run_model(half_life):
     H = F.Species("H")
     my_model.species = [H]
 
-    decay_constant = np.log(2)/half_life
+    decay_constant = np.log(2) / half_life
 
     decay_reaction = F.Reaction(reactant=H, k_0=decay_constant, E_k=0, volume=volume)
 
     my_model.reactions = [decay_reaction]
 
-    my_model.temperature = 300 # ignored in this problem
+    my_model.temperature = 300  # ignored in this problem
 
     average_volume = F.AverageVolume(field=H, volume=volume)
 
-    my_model.exports=[average_volume]
+    my_model.exports = [average_volume]
 
     my_model.initial_conditions = [F.InitialCondition(value=3.0, species=H)]
 
-    my_model.settings = F.Settings(atol = 1e-10, rtol = 1e-10, final_time= 5*half_life,  transient=True)
-    my_model.settings.stepsize = F.Stepsize(initial_value=0.5, growth_factor=1.1, cutback_factor=0.9, target_nb_iterations=20)
+    my_model.settings = F.Settings(
+        atol=1e-10, rtol=1e-10, final_time=5 * half_life, transient=True
+    )
+    my_model.settings.stepsize = F.Stepsize(
+        initial_value=0.05,
+        growth_factor=1.1,
+        cutback_factor=0.9,
+        target_nb_iterations=4,
+    )
 
     my_model.initialise()
     my_model.run()
@@ -93,9 +101,8 @@ def run_model(half_life):
 
 
 tests = []
-for half_life in np.linspace(1,100,5):
+for half_life in np.linspace(1, 100, 5):
     tests.append((*run_model(half_life), half_life))
-
 ```
 
 ## Comparison with exact solution
