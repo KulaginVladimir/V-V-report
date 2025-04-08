@@ -63,19 +63,19 @@ Multiplying by the area and normalising by the initial quantity in the enclosure
 
 ## FESTIM Code
 
-```{code-cell} ipython3
+```{code-cell}
 import festim as F
 import numpy as np
 
-encl_vol = 5.20e-11  # m3  same
-encl_surf = 2.16e-6  # m2  same
-l = 3.3e-5  # m same
-R = 8.314  # same
-avogadro = 6.022e23  # mol-1  same
-temperature = 2373  # K  same
-initial_pressure = 1e6  # Pa  same
-solubility = 7.244e22 / temperature  # H/m3/Pa  # same
-diffusivity = 2.6237e-11  # m2/s  almost same
+encl_vol = 5.20e-11  # m^3
+encl_surf = 2.16e-6  # m^2
+l = 3.3e-5  # m
+R = 8.314  #
+avogadro = 6.022e23  # mol-1
+temperature = 2373  # K
+initial_pressure = 1e6  # Pa
+solubility = 7.244e22 / temperature  # H/m3/Pa
+diffusivity = 2.6237e-11  # m2/s
 
 
 class PressureExport(F.SurfaceQuantity):
@@ -107,7 +107,7 @@ class CustomHydrogenTransportProblem(F.HydrogenTransportProblem):
 
 model = CustomHydrogenTransportProblem()
 
-vertices = np.linspace(0, l, 50)
+vertices = np.linspace(0, l, 150)
 
 model.mesh = F.Mesh1D(vertices)
 
@@ -140,7 +140,7 @@ model.exports = [left_flux, right_flux, pressure_export]
 
 model.settings = F.Settings(atol=1e8, rtol=1e-10, final_time=140)
 
-model.settings.stepsize = F.Stepsize(0.1)
+model.settings.stepsize = F.Stepsize(0.05)
 
 model.initialise()
 model.run()
@@ -148,7 +148,7 @@ model.run()
 
 ## Comparison with exact solution
 
-```{code-cell} ipython3
+```{code-cell}
 :tags: [hide-input]
 
 import matplotlib.pyplot as plt
@@ -178,47 +178,11 @@ def get_roots(L, l, alpha_max, step=0.0001):
 
     g = L / np.tan(alphas * l)
 
-    # plt.plot(alphas, f, "-")
-    # plt.plot(alphas, g, "-")
-
     idx = np.argwhere(np.diff(np.sign(f - g))).flatten()
 
     # remove one every other idx
     idx = idx[::2]
-    # plt.plot(alphas[idx], f[idx], "ro")
-    # plt.show()
-    roots = alphas[idx]
-    return roots
 
-
-def get_roots_bis(L, alpha_max, step=0.0001):
-    """Gets the roots of alpha = L / tan(alpha)
-
-    Args:
-        L (float): parameter L
-        alpha_max (float): the maximum alpha to consider
-        step (float, optional): the step discretising alphas.
-            The smaller the step, the more accurate the roots.
-            Defaults to 0.0001.
-
-    Returns:
-        np.array: array of roots
-    """
-    alphas = np.arange(0, alpha_max, step=step)[1:]
-
-    f = alphas
-
-    g = L / np.tan(alphas)
-
-    plt.plot(alphas, f, "-")
-    plt.plot(alphas, g, "-")
-
-    idx = np.argwhere(np.diff(np.sign(f - g))).flatten()
-
-    # remove one every other idx
-    idx = idx[::2]
-    plt.plot(alphas[idx], f[idx], "ro")
-    plt.show()
     roots = alphas[idx]
     return roots
 
@@ -253,21 +217,23 @@ def analytical_expression_fractional_release_TMAP7(t, P_0, D, S, V, T, A, l):
     return fractional_release
 
 
+def RMSPE(x_FESTIM, x_analytical):
+    error = np.sqrt(np.mean((x_FESTIM - x_analytical) ** 2)) / x_analytical.mean()
+    return error
+
+
 # ------------ post processing ----------------
 
-t = right_flux.t
-right_flux_data = right_flux.data
+t = np.array(right_flux.t)
+right_flux_data = np.array(right_flux.data)
 pressures = np.array(pressure_export.data)
 fractional_release = 1 - pressures / initial_pressure
 
-times = np.linspace(0, 140, 1000)
-
 plt.figure()
-plt.plot(t, fractional_release, label="FESTIM")
+plt.plot(t, fractional_release, label="FESTIM", lw=2, color="tab:blue")
 
-times = np.linspace(0, model.settings.final_time, 1000)
 analytical = analytical_expression_fractional_release_TMAP7(
-    t=times,
+    t=t,
     P_0=initial_pressure,
     D=diffusivity,
     S=solubility,
@@ -276,16 +242,26 @@ analytical = analytical_expression_fractional_release_TMAP7(
     A=encl_surf,
     l=l,
 )
-plt.plot(times, analytical, label="analytical", color="tab:green", linestyle="--", lw=3)
-plt.legend()
-plt.xlabel("Time (s)")
+print(f"RMSPE = {RMSPE(fractional_release, analytical)*100:.2f}%")
+
+plt.plot(
+    t,
+    analytical,
+    label="analytical",
+    color="tab:orange",
+    linestyle="--",
+    dashes=(3, 3),
+    lw=2,
+)
+plt.legend(frameon=False)
+plt.xlabel("Time, s")
 plt.ylabel("Fractional release")
 plt.gca().spines[["right", "top"]].set_visible(False)
 
 plt.show()
 ```
 
-```{code-cell} ipython3
+```{code-cell}
 :tags: [hide-input]
 
 def analytical_expression_flux(t, P_0, D, S, V, T, A, l):
@@ -318,30 +294,36 @@ def analytical_expression_flux(t, P_0, D, S, V, T, A, l):
     return flux
 
 
-plt.plot(t, right_flux_data, label="FESTIM")
-plt.plot(
-    times,
-    analytical_expression_flux(
-        t=times,
-        P_0=initial_pressure,
-        D=diffusivity,
-        S=solubility,
-        V=encl_vol,
-        T=temperature,
-        A=encl_surf,
-        l=l,
-    ),
-    color="tab:green",
-    linestyle="--",
-    label="analytical",
-    lw=3,
+analytical_flux = analytical_expression_flux(
+    t=t,
+    P_0=initial_pressure,
+    D=diffusivity,
+    S=solubility,
+    V=encl_vol,
+    T=temperature,
+    A=encl_surf,
+    l=l,
 )
-plt.legend()
-plt.ylim(bottom=0)
-plt.ylabel("Flux at outer surface (H/m^2/s)")
-plt.xlabel("Time (s)")
 
+print(f"RMSPE = {RMSPE(right_flux_data, analytical_flux)*100:.2f}%")
+
+plt.plot(t, right_flux_data, label="FESTIM", lw=2, color="tab:blue")
+plt.plot(
+    t,
+    analytical_flux,
+    color="tab:orange",
+    linestyle="--",
+    dashes=(3, 3),
+    label="analytical",
+    lw=2,
+)
+
+plt.legend(frameon=False)
+plt.ylim(bottom=0)
+plt.ylabel(r"Flux at outer surface, H m$^{-2}$s$^{-1}$")
+plt.xlabel("Time, s")
 plt.gca().spines[["right", "top"]].set_visible(False)
 plt.ylim(bottom=0)
+
 plt.show()
 ```
