@@ -80,15 +80,15 @@ def run_model(half_life):
 
     my_model.exports = [average_volume]
 
-    my_model.initial_conditions = [F.InitialCondition(value=3.0, species=H)]
+    my_model.initial_conditions = [F.InitialCondition(value=initial_concentration, species=H)]
 
     my_model.settings = F.Settings(
         atol=1e-10, rtol=1e-10, final_time=5 * half_life, transient=True
     )
     my_model.settings.stepsize = F.Stepsize(
         initial_value=0.05,
-        growth_factor=1.1,
-        cutback_factor=0.9,
+        growth_factor=1.01,
+        cutback_factor=0.99,
         target_nb_iterations=4,
     )
 
