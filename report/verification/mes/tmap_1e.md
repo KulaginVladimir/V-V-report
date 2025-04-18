@@ -7,7 +7,7 @@ jupytext:
     format_version: 0.13
     jupytext_version: 1.16.7
 kernelspec:
-  display_name: vv-festim-report-env
+  display_name: vv-festim-report-env-festim-2
   language: python
   name: python3
 ---
@@ -283,12 +283,12 @@ def analytical_expression_temporal(t, x, a, l, D0_PyC, D0_SiC):
 
 for x, festim_data in zip([x1, x2], [point_value1, point_value2]):
     t = np.array(festim_data.t)
-    indx = np.where(t>1)[0]
-    
-    festim_solution = np.array(festim_data.data)
+    indx = np.where(t>0.1)[0]
+    t = t[indx]
+    festim_solution = np.array(festim_data.data)[indx].flatten()
 
     analytical_solution = analytical_expression_temporal(t, x, a, l, D0_PyC, D0_SiC)
-    
+
     error = RMSPE(festim_solution, analytical_solution)
     print(f"RMSPE at x={x} m is {error:.2f}%")
 
