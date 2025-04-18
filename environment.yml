@@ -19,7 +19,7 @@ dependencies:
   - ipython=8.23
   - scipy
   - plotly
-  - festim=2.0a2
+  - festim=2.0a3
   - plotly
   - pip
   - pip:
