@@ -126,7 +126,7 @@ bottom_right_surface = BottomRightSurface(id=6)
 
 
 # Create the FESTIM model
-my_model = F.HTransportProblemDiscontinuous()
+my_model = F.HydrogenTransportProblemDiscontinuous()
 
 my_model.mesh = F.Mesh(fenics_mesh)
 
@@ -325,7 +325,7 @@ for n in ns:
     nx = ny = n
     fenics_mesh = dolfinx.mesh.create_unit_square(MPI.COMM_WORLD, nx, ny)
 
-    new_model = F.HTransportProblemDiscontinuous()
+    new_model = F.HydrogenTransportProblemDiscontinuous()
     new_model.mesh = F.Mesh(fenics_mesh)
 
     new_model.species = my_model.species
