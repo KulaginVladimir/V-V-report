@@ -7,7 +7,7 @@ jupytext:
     format_version: 0.13
     jupytext_version: 1.16.7
 kernelspec:
-  display_name: vv-festim-report-env-festim-2
+  display_name: vv-festim-report-env
   language: python
   name: python3
 ---
@@ -79,6 +79,10 @@ $$
 In [TMAP8 V&V](https://mooseframework.inl.gov/TMAP8/verification_and_validation/ver-1e.html) there is a note stating that the expressions of the analytical solution for the transient case in TMAP4 and TMAP7 V&V books are inconsistent with the results, which suggest typographical errors. Therefore, we used the expression provided in TMAP8 V&V and taken from {cite}`li2010analytical`. However, we assume that there is also a typogaphical error in the TMAP8 case description as a reasonable agreement of numerical and analytical results can be obtained by replacing the minus sign before the summations with the plus sign.
 ```
 
++++
+
+## FESTIM Code
+
 ```{code-cell} ipython3
 import festim as F
 import numpy as np
@@ -104,26 +108,15 @@ class PointValue(F.VolumeQuantity):
         self.data.append(self.value)
 
 
-class Profile(F.VolumeQuantity):
-    def __init__(self, field, volume, times=None, filename=None):
-        super().__init__(field, volume, filename)
-        self.times = times or []
-
-    def compute(self):
-        self.value = self.field.solution.x.array[:].copy()
-        self.data.append(self.value)
-```
-
-## FESTIM Code
-
-```{code-cell} ipython3
+# Define input parameters
 a = 33e-6
 l = 66e-6
 D0_PyC = 1.274e-7
 D0_SiC = 2.622e-11
-T = 1.e3
+T = 1.0e3
 c_left = 3.0537e25
 
+# Create the FESTIM model
 model = F.HydrogenTransportProblem()
 
 vertices = np.concatenate(
@@ -135,11 +128,11 @@ vertices = np.concatenate(
 
 model.mesh = F.Mesh1D(vertices)
 
-materiaa = F.Material(D_0=D0_PyC, E_D=0)
-material = F.Material(D_0=D0_SiC, E_D=0)
+material_PyC = F.Material(D_0=D0_PyC, E_D=0)
+material_SiC = F.Material(D_0=D0_SiC, E_D=0)
 
-left_volume = F.VolumeSubdomain1D(id=1, borders=[0, a], material=materiaa)
-right_volume = F.VolumeSubdomain1D(id=2, borders=[a, a + l], material=material)
+left_volume = F.VolumeSubdomain1D(id=1, borders=[0, a], material=material_PyC)
+right_volume = F.VolumeSubdomain1D(id=2, borders=[a, a + l], material=material_SiC)
 left_surface = F.SurfaceSubdomain1D(id=3, x=0)
 right_surface = F.SurfaceSubdomain1D(id=4, x=a + l)
 
@@ -168,7 +161,9 @@ x1 = 32e-6
 x2 = 48.75e-6
 
 point_value1 = PointValue(model.species[0], volume=left_volume, x0=np.array([x1, 0, 0]))
-point_value2 = PointValue(model.species[0], volume=right_volume, x0=np.array([x2, 0, 0]))
+point_value2 = PointValue(
+    model.species[0], volume=right_volume, x0=np.array([x2, 0, 0])
+)
 
 model.exports = [point_value1, point_value2]
 
@@ -180,8 +175,6 @@ model.run()
 
 ```{code-cell} ipython3
 :tags: [hide-input]
-
-import matplotlib.pyplot as plt
 
 def analytical_expression_steadystate(x_mesh, a, l, D0_PyC, D0_SiC):
     """
@@ -201,44 +194,61 @@ def analytical_expression_steadystate(x_mesh, a, l, D0_PyC, D0_SiC):
     c_exact = np.zeros_like(x_mesh)
     for i, x in enumerate(x_mesh):
         if x <= a:
-            c_exact[i] = c_left * (1 + x / l * (a * D0_PyC / (a * D0_PyC + l * D0_SiC) - 1))
+            c_exact[i] = c_left * (
+                1 + x / l * (a * D0_PyC / (a * D0_PyC + l * D0_SiC) - 1)
+            )
         else:
-            c_exact[i] = c_left * (a + l - x) / (l) * a * D0_PyC / (a * D0_PyC + l * D0_SiC)
+            c_exact[i] = (
+                c_left * (a + l - x) / (l) * a * D0_PyC / (a * D0_PyC + l * D0_SiC)
+            )
 
     return c_exact
 
+
 def RMSPE(x_FESTIM, x_analytical):
-    error = np.sqrt(np.mean((x_FESTIM - x_analytical) ** 2)) * 100 / np.mean(x_analytical)
+    error = (
+        np.sqrt(np.mean((x_FESTIM - x_analytical) ** 2)) * 100 / np.mean(x_analytical)
+    )
     return error
+```
+
+```{code-cell} ipython3
+import matplotlib.pyplot as plt
 
 computed_solution = H.solution.x.array[:]
 computed_x = model.mesh.mesh.geometry.x[:, 0]
-analytical_solution = analytical_expression_steadystate(computed_x, a, l, D0_PyC, D0_SiC)
+analytical_solution = analytical_expression_steadystate(
+    computed_x, a, l, D0_PyC, D0_SiC
+)
 
 error = RMSPE(computed_solution, analytical_solution)
 print(f"RMSPE={error:.2f}%")
 
-plt.plot(computed_x*1e6, computed_solution, label="FESTIM", linewidth=2)
-plt.plot(computed_x*1e6, analytical_solution, label="analytical", linewidth=2, ls='dashed')
+plt.plot(computed_x * 1e6, computed_solution, label="FESTIM", linewidth=2)
+plt.plot(
+    computed_x * 1e6, analytical_solution, label="analytical", linewidth=2, ls="dashed"
+)
 
 
 plt.ylabel(r"Cocentration, m$^{-3}$")
 plt.xlabel(r"x, $\mathrm{\mu}$m")
-plt.legend()
+plt.legend(frameon=False)
 plt.show()
 ```
 
 ```{code-cell} ipython3
 :tags: [hide-input]
 
-def get_lambdas_analytical(k,l,a):
+def get_lambdas_analytical(k, l, a):
     # Calculate lambda values for analytical solution
-        lambda_range = np.arange(1e-12,1e2,1e-5)
-        f = 1/k * np.sin(lambda_range) * np.cos(lambda_range*l/a*k)
-        g = np.cos(lambda_range) * np.sin(lambda_range*l/a*k)
-        idx = np.where(np.diff(np.sign(f+g)))
-        lambdas = lambda_range[idx][::1]
-        return lambdas
+    # The function was taken from TMAP8 V&V https://github.com/idaholab/TMAP8/blob/de10192998e63dfedfdd260e86a1d7726f765303/test/tests/ver-1e/comparison_ver-1e.py#L13-L20
+    lambda_range = np.arange(1e-12, 1e2, 1e-5)
+    f = 1 / k * np.sin(lambda_range) * np.cos(lambda_range * l / a * k)
+    g = np.cos(lambda_range) * np.sin(lambda_range * l / a * k)
+    idx = np.where(np.diff(np.sign(f + g)))
+    lambdas = lambda_range[idx][::1]
+    return lambdas
+
 
 def analytical_expression_temporal(t, x, a, l, D0_PyC, D0_SiC):
     """Analytical expression for the temporal dependency of the hydrogen concentration at a given point
@@ -252,38 +262,47 @@ def analytical_expression_temporal(t, x, a, l, D0_PyC, D0_SiC):
         D0_SiC (float): H diffusivity in SiC (m^2 s^-1)
 
     Returns:
-        np.array: array of concentration values        
+        np.array: array of concentration values
     """
 
     k = np.sqrt(D0_PyC / D0_SiC)
     f = l / a
 
-    roots = get_lambdas_analytical(k,l,a)
+    roots = get_lambdas_analytical(k, l, a)
     roots = roots[:, np.newaxis]
 
-    sinus1 = np.sin(k*roots*f)
-    cosinus1 = np.cos(k*roots*f)
+    sinus1 = np.sin(k * roots * f)
+    cosinus1 = np.cos(k * roots * f)
     Bn = (
-        D0_PyC*l*sinus1**2 * (np.cos(roots) - 1) + D0_SiC*sinus1 * (k*l*np.sin(roots)*cosinus1 - a*sinus1)
-        ) / (
-        roots*(a*D0_SiC+l*D0_PyC)*(sinus1**2 + f*np.sin(roots)**2)
-    )
+        D0_PyC * l * sinus1**2 * (np.cos(roots) - 1)
+        + D0_SiC * sinus1 * (k * l * np.sin(roots) * cosinus1 - a * sinus1)
+    ) / (roots * (a * D0_SiC + l * D0_PyC) * (sinus1**2 + f * np.sin(roots) ** 2))
 
     sum = 0
     if x <= a:
-        sum = Bn * np.sin(roots * x / a) * np.exp(-D0_PyC * (roots / a)**2 * t)
+        sum = Bn * np.sin(roots * x / a) * np.exp(-D0_PyC * (roots / a) ** 2 * t)
         sum = np.sum(sum, axis=0)
-        c_exact = c_left * (((a - x) * D0_SiC + l * D0_PyC) / (l * D0_PyC + a * D0_SiC) + 2 * sum)
+        c_exact = c_left * (
+            ((a - x) * D0_SiC + l * D0_PyC) / (l * D0_PyC + a * D0_SiC) + 2 * sum
+        )
     else:
-        sum = Bn * np.sin(roots) / sinus1 * np.sin(k * roots * (a + l - x) / a) * np.exp(-D0_PyC * (roots / a)**2 * t)
+        sum = (
+            Bn
+            * np.sin(roots)
+            / sinus1
+            * np.sin(k * roots * (a + l - x) / a)
+            * np.exp(-D0_PyC * (roots / a) ** 2 * t)
+        )
         sum = np.sum(sum, axis=0)
         c_exact = c_left * (D0_PyC * (a + l - x) / (l * D0_PyC + a * D0_SiC) + 2 * sum)
-    
-    return c_exact      
 
+    return c_exact
+```
+
+```{code-cell} ipython3
 for x, festim_data in zip([x1, x2], [point_value1, point_value2]):
     t = np.array(festim_data.t)
-    indx = np.where(t>0.1)[0]
+    indx = np.where(t >= 0.1)[0]
     t = t[indx]
     festim_solution = np.array(festim_data.data)[indx].flatten()
 
@@ -292,11 +311,18 @@ for x, festim_data in zip([x1, x2], [point_value1, point_value2]):
     error = RMSPE(festim_solution, analytical_solution)
     print(f"RMSPE at x={x} m is {error:.2f}%")
 
-    plt.plot(t, festim_solution, label=f"FESTIM: x={x*1e6}" + r" $\mathrm{\mu m}$", lw=2)
-    plt.plot(t, analytical_solution, ls="dashed", label=f"Analytical: x={x*1e6}" + r" $\mathrm{\mu m}$")
+    plt.plot(
+        t, festim_solution, label=f"FESTIM: x={x*1e6}" + r" $\mathrm{\mu m}$", lw=2
+    )
+    plt.plot(
+        t,
+        analytical_solution,
+        ls="dashed",
+        label=f"Analytical: x={x*1e6}" + r" $\mathrm{\mu m}$",
+    )
 
 plt.ylabel(r"Concentration, m$^{-3}$")
 plt.xlabel("Time, s")
-plt.legend()
+plt.legend(frameon=False)
 plt.show()
 ```
