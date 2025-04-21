@@ -37,9 +37,9 @@ where
 
 $x$ is the distance from free surface of PyC
 
-$a$ is the thickness of the PyC layer (33 $\mathrm{\mu m}$)
+$a$ is the thickness of the PyC layer ($33 \ \mathrm{\mu m}$)
 
-$l$ is the thickness of the SiC layer (66 $\mathrm{\mu m}$)
+$l$ is the thickness of the SiC layer ($66 \ \mathrm{\mu m}$)
 
 $C_0$ is the concentration at the PyC free surface ($3.0537 \times 10^{25} \mathrm{m}^{-3}$)
 
